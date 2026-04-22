@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dice Strategy Architect</title>
+    <style>
+        :root {
+            --bg: #0a0c10;
+            --surface: #161b22;
+            --surface-light: #21262d;
+            --text: #c9d1d9;
+            --text-muted: #8b949e;
+            --primary: #238636;
+            --secondary: #1f6feb;
+            --border: #30363d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .wrap { max-width: 1200px; margin: 0 auto; }
+        h1 { margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card {
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            background: var(--primary);
+            color: white;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        button.secondary { background: var(--secondary); }
+        button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .rule {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stat-card {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value { font-size: 20px; font-weight: bold; }
+        .positive { color: #3bd671; }
+        .negative { color: #ff5b5b; }
+        pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            overflow: auto;
+            max-height: 300px;
+            font-size: 13px;
+        }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>🎲 Dice Strategy Architect</h1>
+    
+    <div class="grid">
+        <!-- LEFT: Builder -->
+        <div class="card">
+            <h2>Strategy Builder</h2>
+            <div class="input-group">
+                <label>Strategy Name</label>
+                <input type="text" id="strategyName" placeholder="My Strategy" value="Custom Strategy">
+            </div>
+            <div id="rulesArea"></div>
+            <button id="addRuleBtn">➕ Add Rule</button>
+            <button id="exportJsonBtn" class="secondary">📤 Export JSON</button>
+            <button id="clearAllBtn" class="ghost">🗑️ Clear All</button>
+        </div>
+
+        <!-- RIGHT: Simulator -->
+        <div class="card">
+            <h2>Simulation</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="input-group">
+                    <label>Starting Balance</label>
+                    <input type="number" id="startingBalance" value="1000" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Base Bet</label>
+                    <input type="number" id="baseBet" value="1" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Base Chance (%)</label>
+                    <input type="number" id="baseChance" value="50" min="1" max="98">
+                </div>
+                <div class="input-group">
+                    <label>Number of Runs</label>
+                    <input type="number" id="runs" value="100">
+                </div>
+                <div class="input-group">
+                    <label>Max Bets per Run</label>
+                    <input type="number" id="maxBets" value="1000">
+                </div>
+                <div class="input-group">
+                    <label>House Edge (%)</label>
+                    <input type="number" id="houseEdge" value="1" step="0.1">
+                </div>
+            </div>
+            <button id="simulateBtn">🎯 Run Simulation</button>
+            <button id="exportDobBtn" class="secondary">📜 Export dobet()</button>
+            
+            <div class="stats-grid" id="statsArea"></div>
+            <pre id="codeOutput">// Click Export to generate dobet() script</pre>
+        </div>
+    </div>
+</div>
+
+<script>
+// ----- SIMPLE STRATEGY ARCHITECT (Self-Contained) -----
+let blocks = [
+    { id: '1', type: 'bets', on: { type: 'every', value: 1, betType: 'lose' }, do: { type: 'increaseByPercentage', value: 100 } },
+    { id: '2', type: 'bets', on: { type: 'every', value: 1, betType: 'win' }, do: { type: 'resetAmount' } }
+];
+
+// DOM Elements
+const rulesArea = document.getElementById('rulesArea');
+const statsArea = document.getElementById('statsArea');
+const codeOutput = document.getElementById('codeOutput');
+
+// Render rules
+function renderRules() {
+    rulesArea.innerHTML = '';
+    blocks.forEach((block, index) => {
+        const div = document.createElement('div');
+        div.className = 'rule';
+        div.innerHTML = `
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <select data-index="${index}" data-field="on.type" style="width:auto;">
+                    <option ${block.on.type==='every'?'selected':''}>every</option>
+                    <option ${block.on.type==='everyStreakOf'?'selected':''}>everyStreakOf</option>
+                    <option ${block.on.type==='firstStreakOf'?'selected':''}>firstStreakOf</option>
+                </select>
+                <input data-index="${index}" data-field="on.value" type="number" value="${block.on.value}" style="width:80px;" placeholder="Value">
+                <select data-index="${index}" data-field="on.betType" style="width:auto;">
+                    <option ${block.on.betType==='lose'?'selected':''}>lose</option>
+                    <option ${block.on.betType==='win'?'selected':''}>win</option>
+                    <option ${block.on.betType==='bet'?'selected':''}>bet</option>
+                </select>
+                <span>→</span>
+                <select data-index="${index}" data-field="do.type" style="width:auto;">
+                    <option ${block.do.type==='increaseByPercentage'?'selected':''}>increaseByPercentage</option>
+                    <option ${block.do.type==='decreaseByPercentage'?'selected':''}>decreaseByPercentage</option>
+                    <option ${block.do.type==='resetAmount'?'selected':''}>resetAmount</option>
+                    <option ${block.do.type==='setAmount'?'selected':''}>setAmount</option>
+                    <option ${block.do.type==='switchOverUnder'?'selected':''}>switchOverUnder</option>
+                    <option ${block.do.type==='setWinChance'?'selected':''}>setWinChance</option>
+                    <option ${block.do.type==='stop'?'selected':''}>stop</option>
+                </select>
+                <input data-index="${index}" data-field="do.value" type="number" value="${block.do.value}" style="width:80px;" placeholder="Value">
+                <button data-index="${index}" class="deleteRule" style="background:#da3633;">✕</button>
+            </div>
+        `;
+        rulesArea.appendChild(div);
+    });
+    
+    // Attach listeners
+    document.querySelectorAll('[data-field]').forEach(el => {
+        el.addEventListener('change', (e) => {
+            const idx = e.target.dataset.index;
+            const field = e.target.dataset.field;
+            const value = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+            const parts = field.split('.');
+            if (parts.length === 2) {
+                blocks[idx][parts[0]][parts[1]] = value;
+            }
+        });
+    });
+    
+    document.querySelectorAll('.deleteRule').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = e.target.dataset.index;
+            blocks.splice(idx, 1);
+            renderRules();
+        });
+    });
+}
+
+document.getElementById('addRuleBtn').addEventListener('click', () => {
+    blocks.push({
+        id: Date.now().toString(),
+        type: 'bets',
+        on: { type: 'every', value: 1, betType: 'bet' },
+        do: { type: 'resetAmount', value: 0 }
+    });
+    renderRules();
+});
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+    blocks = [];
+    renderRules();
+});
+
+document.getElementById('exportJsonBtn').addEventListener('click', () => {
+    const strategy = {
+        label: document.getElementById('strategyName').value || 'Custom',
+        blocks: blocks.map(b => ({ ...b, id: undefined }))
+    };
+    const blob = new Blob([JSON.stringify(strategy, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (strategy.label || 'strategy') + '.json';
+    a.click();
+});
+
+// Simulation engine (simplified but functional)
+function simulate(strategy, params) {
+    const { runs, maxBets, startBalance, baseBet, baseChance, houseEdge } = params;
+    const hr = houseEdge / 100;
+    let totalProfit = 0, busts = 0, totalWins = 0, totalLosses = 0;
+    
+    for (let r = 0; r < runs; r++) {
+        let balance = startBalance;
+        let nextbet = baseBet;
+        let chance = baseChance;
+        let bets = 0, wins = 0, losses = 0, winStreak = 0, loseStreak = 0;
+        let stopped = false;
+        const first = {};
+        
+        for (let i = 0; i < maxBets; i++) {
+            if (stopped || nextbet > balance) break;
+            
+            const p = chance / 100;
+            const win = Math.random() < p;
+            const mult = (100 * (1 - hr)) / chance;
+            const delta = win ? nextbet * (mult - 1) : -nextbet;
+            balance += delta;
+            
+            bets++;
+            if (win) { wins++; winStreak++; loseStreak = 0; }
+            else { losses++; loseStreak++; winStreak = 0; }
+            
+            // Process rules
+            for (const block of strategy.blocks) {
+                let trigger = false;
+                const on = block.on;
+                if (block.type === 'bets') {
+                    if (on.type === 'every') {
+                        if (on.betType === 'bet') trigger = (bets % on.value === 0);
+                        else if (on.betType === 'win') trigger = (win && wins % on.value === 0);
+                        else if (on.betType === 'lose') trigger = (!win && losses % on.value === 0);
+                    } else if (on.type === 'everyStreakOf') {
+                        if (on.betType === 'win') trigger = (win && winStreak === on.value);
+                        else if (on.betType === 'lose') trigger = (!win && loseStreak === on.value);
+                    }
+                }
+                if (trigger) {
+                    const act = block.do;
+                    const v = parseFloat(act.value) || 0;
+                    switch (act.type) {
+                        case 'increaseByPercentage': nextbet *= (1 + v/100); break;
+                        case 'decreaseByPercentage': nextbet *= (1 - v/100); break;
+                        case 'resetAmount': nextbet = baseBet; break;
+                        case 'setAmount': nextbet = v; break;
+                        case 'switchOverUnder': /* not fully implemented */ break;
+                        case 'setWinChance': chance = Math.min(98, Math.max(1, v)); break;
+                        case 'stop': stopped = true; break;
+                    }
+                }
+            }
+            if (stopped) break;
+        }
+        totalProfit += (balance - startBalance);
+        totalWins += wins;
+        totalLosses += losses;
+        if (balance <= 0) busts++;
+    }
+    
+    return {
+        avgProfit: totalProfit / runs,
+        winRate: totalWins / (totalWins + totalLosses || 1),
+        busts,
+        runs
+    };
+}
+
+document.getElementById('simulateBtn').addEventListener('click', () => {
+    const params = {
+        runs: parseInt(document.getElementById('runs').value) || 100,
+        maxBets: parseInt(document.getElementById('maxBets').value) || 1000,
+        startBalance: parseFloat(document.getElementById('startingBalance').value) || 1000,
+        baseBet: parseFloat(document.getElementById('baseBet').value) || 1,
+        baseChance: parseFloat(document.getElementById('baseChance').value) || 50,
+        houseEdge: parseFloat(document.getElementById('houseEdge').value) || 1
+    };
+    const strategy = { blocks };
+    const stats = simulate(strategy, params);
+    
+    statsArea.innerHTML = `
+        <div class="stat-card"><div>Avg Profit</div><div class="stat-value ${stats.avgProfit>=0?'positive':'negative'}">${stats.avgProfit.toFixed(4)}</div></div>
+        <div class="stat-card"><div>Win Rate</div><div class="stat-value">${(stats.winRate*100).toFixed(1)}%</div></div>
+        <div class="stat-card"><div>Busts</div><div class="stat-value">${stats.busts}/${stats.runs}</div></div>
+    `;
+});
+
+document.getElementById('exportDobBtn').addEventListener('click', () => {
+    let code = `// dobet() script for: ${document.getElementById('strategyName').value}\n`;
+    code += `var baseBet = ${document.getElementById('baseBet').value};\n`;
+    code += `var nextbet = baseBet;\n`;
+    code += `var chance = ${document.getElementById('baseChance').value};\n`;
+    code += `var bets=0, wins=0, losses=0, winStreak=0, loseStreak=0;\n\n`;
+    code += `function dobet() {\n`;
+    code += `  bets++;\n`;
+    code += `  if(win){ wins++; winStreak++; loseStreak=0; } else { losses++; loseStreak++; winStreak=0; }\n`;
+    blocks.forEach((b, i) => {
+        let cond = '';
+        if (b.on.type === 'every') {
+            if (b.on.betType === 'bet') cond = `bets % ${b.on.value} === 0`;
+            else if (b.on.betType === 'win') cond = `win && wins % ${b.on.value} === 0`;
+            else cond = `!win && losses % ${b.on.value} === 0`;
+        } else if (b.on.type === 'everyStreakOf') {
+            if (b.on.betType === 'win') cond = `win && winStreak === ${b.on.value}`;
+            else cond = `!win && loseStreak === ${b.on.value}`;
+        }
+        let action = '';
+        switch (b.do.type) {
+            case 'increaseByPercentage': action = `nextbet *= ${1 + b.do.value/100};`; break;
+            case 'decreaseByPercentage': action = `nextbet *= ${1 - b.do.value/100};`; break;
+            case 'resetAmount': action = `nextbet = baseBet;`; break;
+            case 'setAmount': action = `nextbet = ${b.do.value};`; break;
+            case 'setWinChance': action = `chance = ${b.do.value};`; break;
+            case 'stop': action = `stop();`; break;
+            default: action = `// ${b.do.type}`;
+        }
+        code += `  if(${cond}) { ${action} }\n`;
+    });
+    code += `}`;
+    codeOutput.textContent = code;
+});
+
+// Initialize
+renderRules();
+</script>
+</body>
+</html>
