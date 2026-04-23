@@ -1,11 +1,32 @@
 {
   "name": "dice-strategy-architect",
-  "version": "1.0.0",
+  "version": "1.2.0",
+  "description": "Design, simulate, and export professional dice betting strategies for crypto casinos. Fully client-side tool with Monte Carlo simulation and dobet() export.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
+  "keywords": [
+    "dice",
+    "betting",
+    "strategy",
+    "crypto",
+    "gambling",
+    "monte-carlo",
+    "dobet",
+    "stake",
+    "casino",
+    "simulation"
+  ],
+  "author": "Dice Strategy Architect Contributors",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/dice-strategy-architect.git"
+  },
+  "homepage": "https://yourusername.github.io/dice-strategy-architect/"
 }
